@@ -139,6 +139,27 @@ SEVERITIES = {
     "Unrecognized Status": "Warning",
 }
 
+RECOMMENDED_ACTIONS = {
+    "Missing ISIN": "Reject or quarantine the position",
+    "Missing MarketPrice": "Block valuation input and request review",
+    "Missing Rating": "Request rating review",
+    "Duplicate position": "Flag both rows as duplicate",
+    "Duplicate previous price": "Review duplicate price history",
+    "Duplicate cashflow": "Flag both rows as duplicate",
+    "No price history": "Identify as a new title",
+    "Price without position": "Review unmatched price",
+    "Cashflow without position": "Flag unmatched cashflow",
+    "Nominal zero or negative": "Flag zero or negative exposure",
+    "BookPrice zero or negative": "Reject or review book price",
+    "MarketPrice zero or negative": "Reject or quarantine the price",
+    "Maturity before valuation date": "Review maturity date",
+    "Price movement above threshold": "Flag price movement for review",
+    "Past cashflow still Forecast": "Review stale cashflow status",
+    "Unrecognized AssetType": "Request data correction",
+    "Unrecognized Currency": "Request data correction",
+    "Unrecognized CashflowType": "Request data correction",
+    "Unrecognized Status": "Request data correction",
+}
 
 def build_exceptions(data):
     """Regroupe les anomalies de qualité dans un tableau."""
@@ -542,6 +563,8 @@ if files:
                         exceptions_df,
                     )
 
+                    exceptions_df["RecommendedAction"] = (exceptions_df["AnomalyType"].map(RECOMMENDED_ACTIONS).fillna("Review exception"))
+
                 # Résumé pour l'application
                 critical_count = int(
                     (exceptions_df["Severity"] == "Critical").sum()
@@ -552,6 +575,13 @@ if files:
                 information_count = int(
                     (exceptions_df["Severity"] == "Information").sum()
                 )
+                
+                if critical_count > 0:
+                    overall_status = "Review required"
+                elif warning_count > 0:
+                    overall_status = "Review recommended"
+                else:
+                    overall_status = "No exception detected"                
 
                 valuation_date = pd.to_datetime(
                     loaded_data["positions.xlsx"]["ValuationDate"].iloc[0]
@@ -567,6 +597,7 @@ if files:
                     "Information": information_count,
                     "Cashflows à 30 jours": len(upcoming_cashflows_df),
                     "Date de valorisation": valuation_date,
+                    "Overall status": overall_status,
                 }
 
                 for currency, total in loaded_data[
@@ -587,7 +618,22 @@ if files:
                 )
 
                 st.success("Les contrôles sont terminés.")
-
+                
+                if overall_status == "Review required":
+                    st.warning(
+                        "Statut général : Review required. "
+                        "Des anomalies Critical nécessitent une revue."
+                    )
+                elif overall_status == "Review recommended":
+                    st.info(
+                        "Statut général : Review recommended. "
+                        "Des anomalies Warning ont été détectées."
+                    )
+                else:
+                    st.success(
+                        "Statut général : No exception detected."
+                    )
+                    
                 st.subheader("Executive Summary")
                 st.dataframe(
                     summary_df,
